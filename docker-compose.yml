@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:?Required}
+    container_name: ${CONTAINER_NAME:?Required}
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:?Required}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Required}
+      POSTGRES_DB: ${POSTGRES_DB:?Required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?Required}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
