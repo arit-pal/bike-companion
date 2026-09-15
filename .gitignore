@@ -1,1 +1,11 @@
 .env
+node_modules/
+dist/
+cluster/dist/
+cluster/node_modules/
+*.tsbuildinfo
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
