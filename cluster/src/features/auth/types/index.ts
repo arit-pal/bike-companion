@@ -22,5 +22,14 @@ export type LoginPayload = {
 
 export type AuthResponse = {
   token: string
-  user: { email: string }
+  user: { id: string; email: string }
+  bike?: {
+    id: string
+    make: string
+    model: string
+    year: number
+    current_mileage: number
+    category?: string
+    vin?: string
+  }
 }

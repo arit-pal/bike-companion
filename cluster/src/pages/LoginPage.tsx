@@ -19,7 +19,7 @@ export function LoginPage() {
       await authApi.login({ email, password })
       setStatus('success')
       setTimeout(() => {
-        navigate('/')
+        navigate('/dashboard')
       }, 900)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
