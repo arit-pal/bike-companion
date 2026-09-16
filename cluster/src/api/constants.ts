@@ -8,7 +8,7 @@ function getApiBaseUrl(): string {
       // Fail fast in prod if env missing — avoids silent localhost calls
       throw new Error('VITE_API_URL is required in production')
     }
-    return 'http://localhost:3000'
+    return 'http://localhost:8080'
   }
   // Basic validation — must be http(s)
   try {
