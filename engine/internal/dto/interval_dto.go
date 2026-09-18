@@ -11,6 +11,15 @@ type CreateIntervalRequest struct {
 	LastDoneDate    *time.Time `json:"last_done_date,omitempty"`
 }
 
+// UpdateIntervalRequest for PUT /api/bikes/:bikeId/intervals/:id — all fields optional.
+type UpdateIntervalRequest struct {
+	Name            *string    `json:"name,omitempty"`
+	IntervalMiles   *int       `json:"interval_miles,omitempty"`
+	IntervalDays    *int       `json:"interval_days,omitempty"`
+	LastDoneMileage *int       `json:"last_done_mileage,omitempty"`
+	LastDoneDate    *time.Time `json:"last_done_date,omitempty"`
+}
+
 // DashboardStatusResponse is the computed status for dashboard.
 type DashboardStatusResponse struct {
 	IntervalID     string     `json:"interval_id"`

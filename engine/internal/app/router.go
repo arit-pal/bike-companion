@@ -16,7 +16,7 @@ func NewRouter(app *App) http.Handler {
 	// Repositories
 	userRepo := repository.NewPostgresUserRepository(app.Pool)
 	bikeRepo := repository.NewPostgresBikeRepository(app.Pool)
-	intervalRepo := repository.NewPostgresIntervalRepository()
+	intervalRepo := repository.NewPostgresIntervalRepository(app.Pool)
 	recordRepo := repository.NewPostgresRecordRepository()
 
 	// Services
@@ -45,10 +45,12 @@ func NewRouter(app *App) http.Handler {
 	mux.Handle("GET /api/bikes", auth(http.HandlerFunc(bikeH.List)))
 	mux.Handle("PATCH /api/bikes/{id}/mileage", auth(http.HandlerFunc(bikeH.UpdateMileage)))
 
-	// Intervals — protected (stubs for now, return 501)
+	// Intervals — protected
 	mux.Handle("POST /api/bikes/{bikeId}/intervals", auth(http.HandlerFunc(intervalH.Create)))
 	mux.Handle("GET /api/bikes/{bikeId}/intervals", auth(http.HandlerFunc(intervalH.List)))
 	mux.Handle("GET /api/bikes/{bikeId}/dashboard", auth(http.HandlerFunc(intervalH.Dashboard)))
+	mux.Handle("PUT /api/bikes/{bikeId}/intervals/{id}", auth(http.HandlerFunc(intervalH.Update)))
+	mux.Handle("DELETE /api/bikes/{bikeId}/intervals/{id}", auth(http.HandlerFunc(intervalH.Delete)))
 
 	// Records — protected
 	mux.Handle("POST /api/bikes/{bikeId}/records", auth(http.HandlerFunc(recordH.Log)))
