@@ -36,6 +36,8 @@ export const API_ENDPOINTS = {
   serviceIntervals: {
     list: (bikeId: string) => `${API_BASE_URL}/api/bikes/${bikeId}/intervals`,
     create: (bikeId: string) => `${API_BASE_URL}/api/bikes/${bikeId}/intervals`,
+    byId: (bikeId: string, id: string) => `${API_BASE_URL}/api/bikes/${bikeId}/intervals/${id}`,
+    dashboard: (bikeId: string) => `${API_BASE_URL}/api/bikes/${bikeId}/dashboard`,
   },
   serviceRecords: {
     list: (bikeId: string) => `${API_BASE_URL}/api/bikes/${bikeId}/records`,

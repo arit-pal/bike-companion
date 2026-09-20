@@ -255,7 +255,12 @@ export function DashboardPage() {
           <div className="bg-surface-container-low border border-surface-container-highest rounded-xl p-4 sm:p-5 flex flex-col">
             <div className="flex items-center justify-between">
               <h2 className="font-headline-sm text-headline-sm font-bold uppercase tracking-tight">Service Intervals</h2>
-              <span className="font-mono text-[10px] tracking-widest uppercase text-on-surface-variant">M3 — PRESETS</span>
+              <Link
+                to="/dashboard/intervals"
+                className="h-8 inline-flex items-center gap-1 px-2.5 rounded bg-primary text-on-primary font-label-md font-bold hover:bg-primary-fixed"
+              >
+                <span className="material-symbols-outlined text-[14px]">settings</span> Manage
+              </Link>
             </div>
             <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">Presets for oil, chain, tires, valves, brake fluid — intervals coming next.</p>
 
