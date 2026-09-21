@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@/api/constants'
 import { authApi } from '@/features/auth/api/auth'
 import type {
   CreateIntervalPayload,
+  DashboardStatus,
   ServiceInterval,
   UpdateIntervalPayload,
 } from '../types'
@@ -72,5 +73,14 @@ export const intervalsApi = {
       credentials: 'include',
     })
     if (!res.ok) await throwForStatus(res)
+  },
+
+  async dashboard(bikeId: string): Promise<DashboardStatus[]> {
+    const res = await fetch(`${API_BASE_URL}/api/bikes/${bikeId}/dashboard`, {
+      headers: authHeaders(),
+      credentials: 'include',
+    })
+    if (!res.ok) await throwForStatus(res)
+    return (await res.json()) as DashboardStatus[]
   },
 }
