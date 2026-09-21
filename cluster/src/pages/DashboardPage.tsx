@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '@/features/auth/api/auth'
 import { API_BASE_URL } from '@/api/constants'
+import { StatusCard } from '@/features/dashboard/components/StatusCard'
+import { statusRank } from '@/features/dashboard/utils/status'
+import { intervalsApi } from '@/features/service-intervals/api/intervals'
+import type { DashboardStatus } from '@/features/service-intervals/types'
 
 type Bike = {
   id: string
@@ -28,6 +32,9 @@ export function DashboardPage() {
   const [updating, setUpdating] = useState(false)
   const [updateError, setUpdateError] = useState('')
   const [updateSuccess, setUpdateSuccess] = useState('')
+  const [statuses, setStatuses] = useState<DashboardStatus[]>([])
+  const [intervalMiles, setIntervalMiles] = useState<Record<string, number>>({})
+  const [statusError, setStatusError] = useState('')
 
   useEffect(() => {
     const token = authApi.getToken()
@@ -42,14 +49,39 @@ export function DashboardPage() {
         const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         })
+        if (res.status === 401) {
+          authApi.logout()
+          navigate('/login', { replace: true })
+          return
+        }
         if (!res.ok) {
           const msg = await res.text()
           throw new Error(msg || 'Failed to load garage')
         }
         const json = (await res.json()) as MeResponse
-        if (!cancelled) {
-          setData(json)
-          if (json.bike) setMileageInput(String(json.bike.current_mileage))
+        if (cancelled) return
+        setData(json)
+        if (json.bike) {
+          setMileageInput(String(json.bike.current_mileage))
+          try {
+            const [list, dash] = await Promise.all([
+              intervalsApi.list(json.bike.id),
+              intervalsApi.dashboard(json.bike.id),
+            ])
+            if (cancelled) return
+            const milesMap: Record<string, number> = {}
+            for (const iv of list) milesMap[iv.id] = iv.interval_miles
+            setIntervalMiles(milesMap)
+            setStatuses(dash)
+          } catch (sErr) {
+            if (cancelled) return
+            if ((sErr as { status?: number })?.status === 401) {
+              authApi.logout()
+              navigate('/login', { replace: true })
+              return
+            }
+            setStatusError(sErr instanceof Error ? sErr.message : 'Failed to load status')
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -107,6 +139,14 @@ export function DashboardPage() {
       setData((prev) => (prev ? { ...prev, bike: updated } : prev))
       setUpdateSuccess('Mileage updated')
       setTimeout(() => setUpdateSuccess(''), 2000)
+      // Recalculate due status against the new odometer reading.
+      try {
+        const dash = await intervalsApi.dashboard(updated.id)
+        setStatuses(dash)
+        setStatusError('')
+      } catch {
+        // Keep stale statuses — next reload refreshes.
+      }
     } catch (err) {
       setUpdateError(err instanceof Error ? err.message : 'Update failed')
     } finally {
@@ -148,6 +188,12 @@ export function DashboardPage() {
   }
 
   const bike = data?.bike
+  const overdue = statuses.filter((s) => s.status === 'Overdue')
+  const dueSoon = statuses.filter((s) => s.status === 'Due Soon')
+  const sorted = [...statuses].sort(
+    (a, b) => statusRank(a.status) - statusRank(b.status) || a.miles_remaining - b.miles_remaining,
+  )
+  const attentionNames = [...overdue, ...dueSoon].slice(0, 2).map((s) => s.name).join(' · ')
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col selection:bg-primary-container selection:text-on-primary-container">
@@ -214,13 +260,13 @@ export function DashboardPage() {
               </div>
               <div className="rounded-lg bg-surface-container border border-surface-container-highest p-3 text-center">
                 <div className="font-label-xs text-label-xs uppercase tracking-wider text-on-surface-variant">Due soon</div>
-                <div className="font-headline-md text-headline-md font-bold mt-1">2</div>
-                <div className="font-mono text-[10px] text-primary mt-0.5">Oil · Chain</div>
+                <div className="font-headline-md text-headline-md font-bold mt-1">{dueSoon.length}</div>
+                <div className="font-mono text-[10px] text-primary mt-0.5 truncate">{dueSoon.length ? dueSoon.slice(0, 2).map((s) => s.name).join(' · ') : 'None'}</div>
               </div>
               <div className="rounded-lg bg-surface-container border border-surface-container-highest p-3 text-center">
                 <div className="font-label-xs text-label-xs uppercase tracking-wider text-on-surface-variant">Overdue</div>
-                <div className="font-headline-md text-headline-md font-bold mt-1">0</div>
-                <div className="font-mono text-[10px] text-on-surface-variant mt-0.5">All clear</div>
+                <div className="font-headline-md text-headline-md font-bold mt-1">{overdue.length}</div>
+                <div className="font-mono text-[10px] text-on-surface-variant mt-0.5 truncate">{overdue.length ? overdue.slice(0, 2).map((s) => s.name).join(' · ') : 'All clear'}</div>
               </div>
             </div>
 
@@ -262,34 +308,39 @@ export function DashboardPage() {
                 <span className="material-symbols-outlined text-[14px]">settings</span> Manage
               </Link>
             </div>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">Presets for oil, chain, tires, valves, brake fluid — intervals coming next.</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+              {statuses.length
+                ? attentionNames
+                  ? `Needs attention: ${attentionNames}${overdue.length + dueSoon.length > 2 ? ' +' : ''}`
+                  : 'Everything within interval — ride on.'
+                : 'Add intervals to see live due status here.'}
+            </p>
+
+            {statusError && (
+              <div role="alert" className="mt-3 text-error text-label-md bg-error-container/20 border border-error/20 rounded px-3 py-2">
+                {statusError}
+              </div>
+            )}
 
             <div className="mt-4 space-y-2 flex-1">
-              {[
-                { name: 'Oil Change', left: '420 KM left', pct: 86, tone: 'soon' as const },
-                { name: 'Chain Lube', left: 'Overdue 80 KM', pct: 100, tone: 'overdue' as const },
-                { name: 'Valve Check', left: '8,200 KM left', pct: 32, tone: 'ok' as const },
-              ].map((r) => (
-                <div key={r.name} className="flex items-center gap-2.5 rounded-lg bg-surface-container border border-surface-container-highest/60 px-3 py-2.5">
-                  <span className={`material-symbols-outlined text-[16px] shrink-0 ${r.tone === 'overdue' ? 'text-error' : r.tone === 'soon' ? 'text-primary' : 'text-secondary'}`}>
-                    {r.tone === 'overdue' ? 'warning' : r.tone === 'soon' ? 'schedule' : 'check_circle'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-label-md text-label-md font-medium truncate">{r.name}</span>
-                      <span className={`font-mono text-[10px] tracking-wider uppercase shrink-0 ${r.tone === 'overdue' ? 'text-error' : 'text-on-surface-variant'}`}>{r.left}</span>
-                    </div>
-                    <div className="mt-1 h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
-                      <div className={`h-full ${r.tone === 'overdue' ? 'bg-error' : r.tone === 'soon' ? 'bg-primary' : 'bg-secondary'}`} style={{ width: `${r.pct}%` }} />
-                    </div>
-                  </div>
+              {sorted.length === 0 ? (
+                <div className="rounded-lg bg-surface-container border border-surface-container-highest/60 p-6 text-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-[28px]">build</span>
+                  <p className="mt-2 font-body-sm text-body-sm text-on-surface-variant">Nothing tracked yet.</p>
+                  <Link to="/dashboard/intervals" className="mt-3 h-9 inline-flex items-center gap-1.5 px-3 rounded bg-primary text-on-primary font-label-md font-bold hover:bg-primary-fixed">
+                    <span className="material-symbols-outlined text-[16px]">add</span> Add intervals
+                  </Link>
                 </div>
-              ))}
+              ) : (
+                sorted.map((row) => (
+                  <StatusCard key={row.interval_id} row={row} intervalMiles={intervalMiles[row.interval_id]} />
+                ))
+              )}
             </div>
 
             <div className="mt-4 rounded-lg bg-surface-container border border-surface-container-highest/60 p-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-secondary text-[16px]">info</span>
-              <p className="font-label-xs text-label-xs text-on-surface-variant leading-tight">Next milestone will make these live — backed by `interval_miles` vs `current_mileage - last_done`.</p>
+              <p className="font-label-xs text-label-xs text-on-surface-variant leading-tight">Live — status from `interval_miles` vs `current_mileage - last_done`. Updates when you save mileage.</p>
             </div>
           </div>
         </div>

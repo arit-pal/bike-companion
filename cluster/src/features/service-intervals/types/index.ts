@@ -27,6 +27,16 @@ export type UpdateIntervalPayload = {
   last_done_date?: string
 }
 
+// Computed status row from GET /api/bikes/:bikeId/dashboard.
+export type DashboardStatus = {
+  interval_id: string
+  name: string
+  status: 'OK' | 'Due Soon' | 'Overdue'
+  miles_remaining: number
+  days_remaining?: number | null
+  last_done_date?: string | null
+}
+
 // KM-only quick-add presets for a daily commuter.
 export type IntervalPreset = {
   name: string
