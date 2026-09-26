@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '@/features/auth/api/auth'
 import { API_BASE_URL } from '@/api/constants'
@@ -6,6 +6,7 @@ import { StatusCard } from '@/features/dashboard/components/StatusCard'
 import { statusRank } from '@/features/dashboard/utils/status'
 import { intervalsApi } from '@/features/service-intervals/api/intervals'
 import type { DashboardStatus } from '@/features/service-intervals/types'
+import { LogServiceModal } from '@/features/service-history/components/LogServiceModal'
 
 type Bike = {
   id: string
@@ -35,6 +36,16 @@ export function DashboardPage() {
   const [statuses, setStatuses] = useState<DashboardStatus[]>([])
   const [intervalMiles, setIntervalMiles] = useState<Record<string, number>>({})
   const [statusError, setStatusError] = useState('')
+  const [logTarget, setLogTarget] = useState<DashboardStatus | null>(null)
+
+  const loadStatuses = useCallback(async (bikeId: string) => {
+    const [list, dash] = await Promise.all([intervalsApi.list(bikeId), intervalsApi.dashboard(bikeId)])
+    const milesMap: Record<string, number> = {}
+    for (const iv of list) milesMap[iv.id] = iv.interval_miles
+    setIntervalMiles(milesMap)
+    setStatuses(dash)
+    setStatusError('')
+  }, [])
 
   useEffect(() => {
     const token = authApi.getToken()
@@ -64,15 +75,7 @@ export function DashboardPage() {
         if (json.bike) {
           setMileageInput(String(json.bike.current_mileage))
           try {
-            const [list, dash] = await Promise.all([
-              intervalsApi.list(json.bike.id),
-              intervalsApi.dashboard(json.bike.id),
-            ])
-            if (cancelled) return
-            const milesMap: Record<string, number> = {}
-            for (const iv of list) milesMap[iv.id] = iv.interval_miles
-            setIntervalMiles(milesMap)
-            setStatuses(dash)
+            await loadStatuses(json.bike.id)
           } catch (sErr) {
             if (cancelled) return
             if ((sErr as { status?: number })?.status === 401) {
@@ -99,7 +102,42 @@ export function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [navigate])
+  }, [navigate, loadStatuses])
+
+  const handleLogged = async () => {
+    setLogTarget(null)
+    if (!data?.bike) return
+    const token = authApi.getToken()
+    if (!token) {
+      navigate('/login', { replace: true })
+      return
+    }
+    try {
+      // Re-fetch garage (odo may have rolled forward) + fresh statuses.
+      const meRes = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (meRes.status === 401) {
+        authApi.logout()
+        navigate('/login', { replace: true })
+        return
+      }
+      if (meRes.ok) {
+        const me = (await meRes.json()) as MeResponse
+        setData(me)
+        if (me.bike) {
+          setMileageInput(String(me.bike.current_mileage))
+          await loadStatuses(me.bike.id)
+        }
+      } else {
+        await loadStatuses(data.bike.id)
+      }
+      setUpdateSuccess('Service logged')
+      setTimeout(() => setUpdateSuccess(''), 2000)
+    } catch {
+      // Statuses refresh on next load.
+    }
+  }
 
   const handleLogout = () => {
     authApi.logout()
@@ -333,7 +371,18 @@ export function DashboardPage() {
                 </div>
               ) : (
                 sorted.map((row) => (
-                  <StatusCard key={row.interval_id} row={row} intervalMiles={intervalMiles[row.interval_id]} />
+                  <div key={row.interval_id} className="flex items-start gap-1.5">
+                    <div className="flex-1 min-w-0">
+                      <StatusCard row={row} intervalMiles={intervalMiles[row.interval_id]} />
+                    </div>
+                    <button
+                      onClick={() => setLogTarget(row)}
+                      title={`Log ${row.name}`}
+                      className="shrink-0 mt-1 h-8 px-2.5 inline-flex items-center gap-1 rounded bg-secondary/15 border border-secondary/30 text-secondary font-mono text-[10px] tracking-widest uppercase hover:bg-secondary/25"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">check</span> Done
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -345,13 +394,18 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* History teaser */}
+        {/* History */}
         <div className="mt-4 bg-surface-container-low border border-surface-container-highest rounded-xl p-4 flex items-center justify-between gap-3">
           <div>
             <div className="font-label-xs text-label-xs tracking-widest uppercase text-on-surface-variant">Service History</div>
-            <div className="font-body-sm text-body-sm text-on-surface-variant">Log a service → history table + interval reset (M4).</div>
+            <div className="font-body-sm text-body-sm text-on-surface-variant">Every job you log lands here — filterable by type.</div>
           </div>
-          <span className="hidden sm:inline-flex font-mono text-[10px] tracking-widest uppercase px-2 py-1 rounded bg-surface-container border border-surface-container-highest text-primary">COMING M4</span>
+          <Link
+            to="/dashboard/history"
+            className="shrink-0 h-9 inline-flex items-center gap-1.5 px-3 rounded bg-primary text-on-primary font-label-md font-bold hover:bg-primary-fixed"
+          >
+            <span className="material-symbols-outlined text-[16px]">history</span> History
+          </Link>
         </div>
       </main>
 
@@ -359,6 +413,17 @@ export function DashboardPage() {
         <span className="font-mono uppercase tracking-widest text-[11px] text-on-surface-variant">MACHINE & MOTOR // TWO WHEELS ONLY</span>
         <span className="font-mono uppercase tracking-widest text-[11px] text-on-surface-variant">PRECISION // ASPHALT & STEEL</span>
       </footer>
+
+      {logTarget && bike && (
+        <LogServiceModal
+          bikeId={bike.id}
+          currentMileage={bike.current_mileage}
+          intervalId={logTarget.interval_id}
+          intervalName={logTarget.name}
+          onClose={() => setLogTarget(null)}
+          onLogged={handleLogged}
+        />
+      )}
     </div>
   )
 }

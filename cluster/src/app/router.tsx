@@ -11,6 +11,7 @@ const DashboardPlaceholder = lazy(() =>
 )
 const DashboardPage = lazy(() => import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
 const IntervalsPage = lazy(() => import('@/pages/IntervalsPage').then((m) => ({ default: m.IntervalsPage })))
+const HistoryPage = lazy(() => import('@/pages/HistoryPage').then((m) => ({ default: m.HistoryPage })))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })))
 
 export function AppRouter() {
@@ -54,6 +55,14 @@ export function AppRouter() {
             element={
               <ProtectedRoute>
                 <IntervalsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/history"
+            element={
+              <ProtectedRoute>
+                <HistoryPage />
               </ProtectedRoute>
             }
           />
