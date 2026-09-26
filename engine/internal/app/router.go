@@ -17,13 +17,13 @@ func NewRouter(app *App) http.Handler {
 	userRepo := repository.NewPostgresUserRepository(app.Pool)
 	bikeRepo := repository.NewPostgresBikeRepository(app.Pool)
 	intervalRepo := repository.NewPostgresIntervalRepository(app.Pool)
-	recordRepo := repository.NewPostgresRecordRepository()
+	recordRepo := repository.NewPostgresRecordRepository(app.Pool)
 
 	// Services
 	authSvc := service.NewAuthService(app.Config, app.Pool, userRepo, bikeRepo)
 	bikeSvc := service.NewBikeService(bikeRepo)
 	intervalSvc := service.NewIntervalService(intervalRepo, bikeRepo)
-	recordSvc := service.NewRecordService(recordRepo, intervalRepo)
+	recordSvc := service.NewRecordService(app.Pool, recordRepo, intervalRepo, bikeRepo)
 
 	// Handlers
 	authH := handler.NewAuthHandler(authSvc)
